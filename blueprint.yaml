@@ -1,0 +1,138 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/4.1/types.yaml
+  - http://www.getcloudify.org/spec/kubernetes-plugin/1.4.0/plugin.yaml
+
+inputs:
+  kubernetes_configuration_file_content:
+    description: >
+      File content of kubernetes master YAML configuration
+    default: {}
+  external_ip:
+    description: >
+      External IP for the nodecellar service
+  external_port:
+    description: >
+      External port for the nodecellar service
+    default: 8080
+
+node_templates:
+
+  kubernetes_master:
+    type: cloudify.kubernetes.nodes.Master
+    properties:
+      configuration:
+        file_content: { get_input: kubernetes_configuration_file_content }
+
+  nodecellar_node:
+    type: cloudify.kubernetes.resources.Deployment
+    properties:
+      definition:
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: nodecellar
+          labels:
+            wp16: nodecellar
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              wp16: nodecellar
+          template:
+            metadata:
+              labels:
+                wp16: nodecellar
+            spec:
+              containers:
+              - name: nodecellar
+                image: uric/nodecellar
+                imagePullPolicy: IfNotPresent
+                stdin: true
+                tty: true
+                ports:
+                - containerPort: 8080
+                env:
+                - name: NODECELLAR_PORT
+                  value: "8080"
+                - name: MONGO_PORT
+                  value: "27017"
+                - name: MONGO_HOST
+                  value: "mongod"
+                command:
+                - nodejs
+                args:
+                - server.js
+    relationships:
+      - type: cloudify.kubernetes.relationships.managed_by_master
+        target: kubernetes_master
+      - type: cloudify.relationships.depends_on
+        target: mongo_node
+
+  mongo_node:
+    type: cloudify.kubernetes.resources.Deployment
+    properties:
+      definition:
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: mongo
+          labels:
+            wp16: mongo
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              wp16: mongo
+          template:
+            metadata:
+              labels:
+                wp16: mongo
+            spec:
+              containers:
+              - name: mongo
+                image: mongo:3.4
+                imagePullPolicy: IfNotPresent
+                stdin: true
+                tty: true
+                ports:
+                - containerPort: 27017
+                - containerPort: 28017
+                command:
+                - mongod
+                args: ["--rest", "--httpinterface", "--smallfiles"]
+    relationships:
+      - type: cloudify.kubernetes.relationships.managed_by_master
+        target: kubernetes_master
+
+  service:
+    type: cloudify.kubernetes.resources.Service
+    properties:
+      definition:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: service-nodecellar
+          labels:
+            wp16: my-service
+        spec:
+          type: NodePort
+          ports:
+          - name: nodecellar
+            port: { get_input: external_port}
+            protocol: TCP
+            targetPort: 8080
+          selector:
+            wp16: nodecellar
+          externalIPs:
+          - { get_input: external_ip }
+    # Needed when setting clusterIP: None.
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start: {}
+    relationships:
+      - type: cloudify.relationships.depends_on
+        target: nodecellar_node
+      - type: cloudify.kubernetes.relationships.managed_by_master
+        target: kubernetes_master

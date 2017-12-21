@@ -4,6 +4,7 @@
 Nodecellar Kubernetes Blueprint creates a K8S deployment with 2 nodes:
 * Nodecellar
 * MongoDB
+
 They are combined into a K8S service.
 
 ### Inputs

@@ -2,7 +2,7 @@ tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
   - http://www.getcloudify.org/spec/cloudify/4.2/types.yaml
-  - http://www.getcloudify.org/spec/kubernetes-plugin/1.4.0/plugin.yaml
+  - http://www.getcloudify.org/spec/kubernetes-plugin/2.0.0/plugin.yaml
 
 inputs:
 
@@ -45,15 +45,6 @@ inputs:
           client-certificate-data: { get_input: kubernetes-admin_client_certificate_data }
           client-key-data:  { get_input: kubernetes-admin_client_key_data }
 
-  external_ip:
-    description: >
-      External IP for the nodecellar service. The IP of the desired Kubernetes node. Often the same as the node's private_ip.
-
-  external_port:
-    description: >
-      External port for the nodecellar service
-    default: 8080
-
 node_templates:
 
   kubernetes_master:
@@ -70,17 +61,14 @@ node_templates:
         kind: Deployment
         metadata:
           name: nodecellar
-          labels:
-            wp16: nodecellar
         spec:
-          replicas: 1
-          selector:
-            matchLabels:
-              wp16: nodecellar
+          strategy:
+            type: Recreate
           template:
             metadata:
               labels:
-                wp16: nodecellar
+                app: nodecellar
+                tier: frontend
             spec:
               containers:
               - name: nodecellar
@@ -115,17 +103,14 @@ node_templates:
         kind: Deployment
         metadata:
           name: mongo
-          labels:
-            wp16: mongo
         spec:
-          replicas: 1
-          selector:
-            matchLabels:
-              wp16: mongo
+          strategy:
+            type: Recreate
           template:
             metadata:
               labels:
-                wp16: mongo
+                app: nodecellar
+                tier: backend
             spec:
               containers:
               - name: mongo
@@ -151,19 +136,16 @@ node_templates:
         kind: Service
         metadata:
           name: service-nodecellar
-          labels:
-            wp16: my-service
         spec:
           type: NodePort
           ports:
           - name: nodecellar
-            port: { get_input: external_port}
+            port: 8080
             protocol: TCP
             targetPort: 8080
           selector:
-            wp16: nodecellar
-          externalIPs:
-          - { get_input: external_ip }
+            app: nodecellar
+            tier: frontend
     # Needed when setting clusterIP: None.
     interfaces:
       cloudify.interfaces.lifecycle:

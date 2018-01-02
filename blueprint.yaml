@@ -89,6 +89,10 @@ node_templates:
                 - nodejs
                 args:
                 - server.js
+      options:
+        grace_period_seconds: 5
+        propagation_policy: 'Foreground'
+        namespace: 'default'
     relationships:
       - type: cloudify.kubernetes.relationships.managed_by_master
         target: kubernetes_master
@@ -124,6 +128,10 @@ node_templates:
                 command:
                 - mongod
                 args: ["--rest", "--httpinterface", "--smallfiles"]
+      options:
+        grace_period_seconds: 5
+        propagation_policy: 'Foreground'
+        namespace: 'default'
     relationships:
       - type: cloudify.kubernetes.relationships.managed_by_master
         target: kubernetes_master
